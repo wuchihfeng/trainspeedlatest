@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>列車速度v4.1.5 整合</title>
+    
+
+  </head>
+    
+  <body>
+  <style>
+  /* 1. 線上引入思源黑體 (Noto Sans TC) 與 思源等寬數字 (Noto Sans Mono)
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+/* 2. 全系統、全元件強制套用一致字體
+   ========================================================================== */
+*, *::before, *::after, body, input, button, select, textarea {
+    /* 預設全部使用思源黑體，若載入失敗則自動啟用系統備用黑體 */
+    font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* 3. 鐵道計算器數據核心區：疊加等寬字體（防止數字跳動）*/
+/* 包含：時速顯示、加速度顯示、秒數小算盤輸入框、代碼輸入框 */
+#mainSpeed, #mainAccel, .helper-inputs input, #trainCode {
+    /* 優先讓英文、數字、冒號與小數點呈現「等寬黑體」，中文維持思源黑體 */
+    font-family: 'Noto Sans Mono', 'Noto Sans TC', monospace !important;
+}
+/* 顏色變數設定（預設為深色模式） */
+:root {
+  --bg-color: #121212;
+  --card-bg: #1e1e1e;
+  --text-color: #e0e0e0;
+  --text-main: #ffffff;
+  --text-muted: #aaa;
+  --text-hint: #888;
+  --border-color: #333;
+  
+  --accent-color: #ff9800;
+  --accent-hover: #e68a00;
+  --accel-accent: #e65c00;
+  --accel-hover: #cc5200;
+  --calc-btn-text: #ffffff; 
+  
+  --input-bg: #252525;
+  --input-border: #444;
+  --parts-bg: #252525;
+  
+  --helper-bg: #2a2a2a;
+  --helper-border: #555;
+  
+  --result-bg: #121212;
+  --result-border: #222; 
+  
+  --danger-bg: #442222;
+  --danger-text: #ff6666;
+  --danger-border: #663333;
+  
+  --tag-bg: #2a2a2a;
+  
+  /* 【新增變數】深色模式下的切換按鈕：白底黑字無邊框 */
+  --toggle-btn-bg: #ffffff;
+  --toggle-btn-text: #121212;
+  
+  /* 【新增圖表文字顏色變數】確保深淺色模式下圖表軸線與文字皆清晰 */
+  --axis-text-color: #a0aec0;
+}
+
+/* 淺色模式主題變數 */
+body.light-mode {
+  --bg-color: #f5f5f7;
+  --card-bg: #ffffff;
+  --text-color: #333333;
+  --text-main: #111111;
+  --text-muted: #555555;
+  --text-hint: #777777;
+  --border-color: #dddddd;
+  
+  --accent-color: #e67e22; 
+  --accent-hover: #d35400;
+  --accel-accent: #d35400;
+  --accel-hover: #ba4a00;
+  --calc-btn-text: #ffffff; 
+  
+  --input-bg: #fdfdfd;
+  --input-border: #cccccc;
+  --parts-bg: #f9f9f9;
+  
+  --helper-bg: #f5f5f9;
+  --helper-border: #cccccc;
+  
+  --result-bg: #fafafa;
+  --result-border: #dddddd; 
+  
+  --danger-bg: #fde8e8;
+  --danger-text: #e02424;
+  --danger-border: #f8b4b4;
+  
+  --tag-bg: #fff3e0;
+  
+  /* 【新增變數】淺色模式下的切換按鈕：黑底白字無邊框 */
+  --toggle-btn-bg: #111111;
+  --toggle-btn-text: #ffffff;
+  
+  --axis-text-color: #4a5568;
+}
+
+/* 基礎設定 */
+* { box-sizing: border-box; }
+
+body { 
+  margin: 0; 
+  background: var(--bg-color); 
+  color: var(--text-color); 
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+  display: flex; 
+  justify-content: center; 
+  padding: 20px; 
+  transition: background 0.3s, color 0.3s;
+}
+
+/* 主容器 */
+.calculator { 
+  background: var(--card-bg); 
+  padding: 20px; 
+  border-radius: 16px; 
+  width: 100%; 
+  max-width: 440px; 
+  border: 1px solid var(--border-color); 
+  box-shadow: 0 12px 30px rgba(0,0,0,0.15); 
+  transition: background 0.3s, border-color 0.3s;
+}
+
+/* 頂部控制列 */
+.top-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 5px;
+}
+
+/* 【核心修正】切換主題按鈕樣式 */
+.theme-toggle-btn {
+  background: var(--toggle-btn-bg);
+  color: var(--toggle-btn-text);
+  border: none; /* 移除邊框 */
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* 加上輕微陰影提升質感 */
+}
+
+h1 { 
+  font-size: clamp(1.1rem, 4vw, 1.35rem); 
+  color: var(--accent-color); 
+  text-align: center; 
+  margin: 0 0 20px; 
+}
+
+/* 提示文字 */
+.label-hint { font-size: 0.8rem; color: var(--text-hint); margin-bottom: 10px; }
+
+/* 快速選取按鈕 */
+.quick-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+
+.quick-tags button { 
+  background: var(--tag-bg); 
+  color: var(--accent-color); 
+  border: 1.5px solid var(--accent-color); 
+  padding: 8px; 
+  border-radius: 7px; 
+  font-size: 0.74rem; 
+  flex: 1 1 calc(33.333% - 8px); 
+  cursor: pointer; 
+  transition: all 0.15s ease; 
+  font-weight: 600; 
+}
+
+/* 萬用按鈕點擊特效 */
+.calculator button:active { 
+  filter: brightness(0.8); 
+  transform: scale(0.97); 
+  transition: filter 0.05s, transform 0.05s;
+}
+
+/* 輸入框控制 */
+.horizontal-inputs { display: flex; gap: 10px; }
+.horizontal-inputs input { flex: 1; }
+
+.input-group { margin-bottom: 15px; }
+label { display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-muted); }
+
+input { 
+  width: 100%; 
+  padding: 11px; 
+  background: var(--input-bg); 
+  border: 1px solid var(--input-border); 
+  border-radius: 8px; 
+  color: var(--text-main); 
+  outline: none; 
+  font-size: 0.95rem;
+  transition: background 0.3s, border-color 0.3s, color 0.3s;
+}
+
+input:focus { border-color: var(--accent-color); }
+
+/* 車廂組合顯示盒 */
+.parts-box { 
+  background: var(--parts-bg); 
+  border: 1px solid var(--border-color); 
+  border-radius: 10px; 
+  padding: 12px; 
+  min-height: 50px; 
+  margin-bottom: 15px;
+}
+
+.placeholder-text { color: var(--text-hint); text-align: center; font-size: 0.8rem; padding-top: 5px; }
+
+.part-row { 
+  display: grid; 
+  grid-template-columns: 1fr 80px; 
+  gap: 10px; 
+  align-items: center; 
+  margin-bottom: 8px; 
+}
+
+.part-name { color: var(--text-color); font-size: 0.85rem; font-weight: 600; }
+.part-row input { text-align: center; padding: 5px; height: 30px; }
+
+/* 按鈕群組 */
+.btn-row { display: flex; gap: 8px; margin: 10px 0; }
+
+.calc-btn { 
+  flex: 2; 
+  background: var(--accent-color); 
+  color: var(--calc-btn-text) !important; 
+  border: none; 
+  padding: 12px; 
+  border-radius: 8px; 
+  font-weight: bold; 
+  cursor: pointer; 
+}
+
+.calc-btn:hover { background: var(--accent-hover); }
+
+.reset-btn { 
+  flex: 0 0 90px; 
+  background: var(--input-bg); 
+  color: var(--text-muted); 
+  border: 1px solid var(--input-border); 
+  border-radius: 8px; 
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* 結果區域 */
+.result-box { 
+  background: var(--result-bg); 
+  padding: 16px; 
+  border-radius: 12px; 
+  text-align: center; 
+  margin: 12px 0; 
+  border: 1px solid var(--result-border); 
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.speed { font-size: 2.2rem; color: var(--accent-color); font-weight: 800; }
+.unit { font-size: 0.9rem; color: var(--text-hint); margin-left: 4px; }
+.info { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; }
+
+/* 分隔線 */
+hr { 
+  border: 0; 
+  border-top: 1px solid var(--border-color); 
+  margin: 20px 0; 
+}
+
+/* 輔助對照表 */
+.reference-guide { 
+  background: var(--parts-bg); 
+  padding: 12px; 
+  border-radius: 10px; 
+  border: 1px solid var(--border-color); 
+  margin-top: 20px; 
+}
+
+.guide-title { 
+  font-size: 0.8rem; 
+  color: var(--accent-color); 
+  margin-bottom: 8px; 
+  font-weight: bold; 
+}
+
+.guide-content { 
+  max-height: 270px; 
+  overflow-y: auto; 
+  font-size: 0.75rem; 
+}
+
+/* 表格樣式 */
+table { width: 100%; border-collapse: collapse; }
+td { 
+  padding: 8px 5px; 
+  border-bottom: 1px solid var(--border-color); 
+  color: var(--text-muted); 
+}
+
+td:first-child { color: var(--accent-color); font-weight: bold; width: 80px; }
+
+.guide-content::-webkit-scrollbar { width: 4px; }
+.guide-content::-webkit-scrollbar-thumb { background: var(--accent-color); border-radius: 10px; }
+
+/* 分類主標題樣式 */
+.category-title {
+  color: var(--text-main) !important;      
+  font-size: 0.95rem;          
+  font-weight: 800;            
+  padding-top: 15px !important;
+  padding-bottom: 5px !important;
+  border-bottom: 2px solid var(--accent-color); 
+  width: 100%;                 
+}
+
+/* 秒數助手外框 */
+.helper-box {
+  background: var(--helper-bg);
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  border: 1px dashed var(--helper-border);
+}
+
+.helper-label {
+  color: var(--accent-color);
+  font-weight: bold;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.helper-inputs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.helper-inputs input {
+  flex: 1;
+  text-align: center;
+  padding: 10px 5px;
+  height: 38px;
+}
+
+.operator {
+  color: var(--text-muted);
+  font-weight: bold;
+  padding: 0 5px;
+}
+
+.helper-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-fill {
+  flex: 2;
+  padding: 12px;
+  background: transparent;
+  color: var(--accent-color);
+  border: 1.5px solid var(--accent-color);
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn-clear {
+  flex: 1;
+  padding: 12px;
+  background: var(--input-bg);
+  color: var(--text-muted);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* 全域重置按鈕容器 */
+.reset-all-container {
+  margin-bottom: 20px;
+  margin-top: 20px !important;
+}
+
+.btn-danger {
+  width: 100%;
+  padding: 12px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* 加速度專用樣式 */
+.accel-theme {
+  background: var(--accel-accent) !important;
+  color: #ffffff !important; 
+}
+.accel-theme:hover {
+  background: var(--accel-hover) !important;
+}
+
+.light-speed {
+  color: var(--accel-accent) !important;
+}
+
+/* --- v3.2 火車動態軌道視覺樣式 (!important 暴力拉直) --- */
+
+/* 軌道主容器：物理切斷所有換行可能，強制 Flex 水平排列 */
+.train-track {
+    display: flex !important;           /* 核心：絕對強制 Flexbox 佈局 */
+    flex-direction: row !important;     /* 核心：絕對強制橫向排列 */
+    flex-wrap: nowrap !important;       /* 核心：絕對強制不准折行，違者直接溢出滾動 */
+    align-items: center !important;     /* 車廂垂直居中 */
+    justify-content: center !important; /* 火車整體畫面水平居中進站 */
+    gap: 4px !important;                /* 車廂間距 */
+    background: rgba(0, 0, 0, 0.2) !important;
+    padding: 8px !important;
+    border-radius: 6px !important;
+    margin-bottom: 12px !important;
+    overflow-x: auto !important;         /* 節數太多時自動橫向滾動，絕不破壞版面 */
+    border-bottom: 2px dashed #666 !important; /* 模擬軌道 */
+    width: 100% !important;             /* 吃滿寬度 */
+    box-sizing: border-box !important;
+}
+
+/* 單節車廂積木：強制伸縮彈性，固定高度 */
+.train-block {
+    flex: 1 1 auto !important;          /* 核心：自動伸縮且不佔滿全寬 */
+    min-width: 24px !important;          /* 防止車頭字體被擠壓 */
+    max-width: 50px !important;          /* 防止只有 duas 節時變得太肥 */
+    height: 20px !important;             /* 固定高度 */
+    font-size: 10px !important;
+    font-weight: bold !important;
+    color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 3px !important;
+    text-shadow: 1px 1px 0px rgba(0,0,0,0.5) !important;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.2) !important;
+    transition: all 0.2s ease !important;
+    box-sizing: border-box !important;
+}
+
+/* 車種配色與車頭流線（也加上 !important 確保配色正確） */
+.block-head {
+    background: #00adb5 !important; 
+    border-top-left-radius: 8px !important; /* 左側車頭流線 */
+}
+.tag-flip {
+    border-radius: 3px !important;
+    border-top-right-radius: 8px !important; /* 右側車頭反向流線 */
+}
+.block-mid {
+    background: #393e46 !important; 
+}
+.block-full {
+    background: #9b59b6 !important; 
+    max-width: 100% !important;
+}
+.block-e5 {
+    background: #ff9800 !important; 
+    border-top-left-radius: 6px !important;
+}
+.block-e1 {
+    background: #e74c3c !important; 
+    border-top-right-radius: 6px !important;
+}
+
+/* ===================================================
+   V-T 圖表區塊與自適應畫布完整樣式表
+   =================================================== */
+
+/* 1. 圖表外層容器：【邏輯修正】將原本 300x300 修正為等比例的 100% 寬度（配合計算機最大440px寬）與 240px 高度，確保 500x300 的原生存放比完美對齊，文字不切邊 */
+.graph-container {
+    margin: 20px 0;
+    width: 100%;
+    height: 320px;
+    position: relative; /* 作為內部提示字層絕對定位的基準點 */
+}
+
+/* 2. SVG 核心畫布：【邏輯修正】改為與主題背景 `--result-bg` 與 `--border-color` 連動，切換主題時畫布底色不突兀 */
+#vtGraph {
+    background-color: var(--result-bg); 
+    border: 1px solid var(--border-color); 
+    border-radius: 8px;        
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); 
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible; /* 重要：確保坐標軸外的文字標籤能正常顯示不被切邊 */
+    transition: background 0.3s, border-color 0.3s;
+}
+
+/* 3. 預設提示文字層：完美置中、絕不出界，且具備高質感科技底色 */
+.graph-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* 讓滑鼠點擊穿透，不干擾選單 */
+    
+    /* 質感點點背景裝飾 */
+    background-image: radial-gradient(#cbd5e0 1px, transparent 1px);
+    background-size: 16px 16px;
+    background-position: center;
+    border-radius: 8px;
+
+    /* 文字結構與視覺美化 */
+    color: #718096;          /* 深灰藍色，字體清晰不模糊 */
+    font-size: 14px;
+    font-weight: 600;        /* 字體加粗 */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    letter-spacing: 0.5px;   /* 微調字距 */
+    
+    /* 膠囊浮動文字塊：【邏輯修正】背景改採微透明的主題背景，確保深淺模式皆有懸浮層次感 */
+    background-color: var(--card-bg); 
+    opacity: 0.9;
+    padding: 10px 20px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* 4. SVG 內部繪圖文字：優化字體並防止滑鼠選取干擾 */
+#vtGraph text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    user-select: none;
+}
+
+/* ===================================================
+   鍵盤輸入代碼提示清單樣式 (完美比例 3:2:2 + 質感立體陰影)
+   =================================================== */
+
+/* 1. 提示外殼容器：維持 3 : 2 : 2 比例 */
+.autocomplete-wrapper {
+  position: relative;
+  flex: 3;          /* 代碼區塊比例 */
+  display: flex;    
+  width: 100%;
+}
+
+/* 強制外殼內部的代碼輸入框填滿外殼空間 */
+.autocomplete-wrapper input {
+  width: 100% !important;
+}
+
+/* 2. 旁邊的時間與末速輸入框比例為 2 */
+.horizontal-inputs > input[type="number"] {
+  flex: 2;          
+}
+
+/* 🚀 下拉提示清單本體：維持原本邊界，注入高級懸浮立體陰影 */
+.autocomplete-items {
+  position: absolute;
+  border: 1px solid var(--border-color);
+  z-index: 999;               /* 提高層級，絕對壓在所有元件上方 */
+  top: calc(100% + 4px);      /* 往下移 4px，創造極佳的浮空層次感 */
+  left: 0;
+  right: 0;                   /* 寬度完全與代碼輸入框對齊，不壓迫右邊 */
+  background-color: var(--card-bg); /* 實心卡片底色，徹底遮擋下方文字 */
+  border-radius: 8px;         /* 獨立的圓角盒模型 */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); /* 🚀 強化的深邃立體陰影，質感大幅提升 */
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* 單個提示選項樣式 */
+.autocomplete-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+/* 最後一個選項移除底線 */
+.autocomplete-item:last-child {
+  border-bottom: none;
+  border-radius: 0 0 8px 8px;
+}
+
+/* 滑鼠懸停或點擊選取時的亮起效果 */
+.autocomplete-item:hover {
+  background-color: var(--border-color);
+  color: var(--accent-color); /* 亮起文字顏色連動主題橘色 */
+  font-weight: bold;
+}
+
+/* ===================================================
+   按鈕通用點擊按壓與顏色優化效果 (完美適配深淺色雙向反轉)
+   =================================================== */
+
+/* 1. 為所有按鈕（含快速選單、主題切換、功能與清空按鈕）加入平滑過渡動畫 */
+.quick-tags button, 
+.theme-toggle-btn, 
+button[type="button"],
+button[onclick*="reset"] {
+  position: relative;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+/* 2. 當按鈕被點擊/按壓時 (通用縮小下沉視覺) */
+.quick-tags button:active, 
+.theme-toggle-btn:active,
+button[type="button"]:active,
+button[onclick*="reset"]:active {
+  transform: scale(0.95) translateY(1px); /* 整體微幅縮小並下移 1px，製造實體按壓感 */
+}
+
+/* 3. 情況一：黑白/灰色系按鈕 (如預設按鈕、清空鈕、主題鈕) 在點擊瞬間的反轉動畫 */
+/* 🚀 智慧連動：深色模式下變白底黑字 / 淺色模式下變黑底白字 */
+.quick-tags button:not([style*="background"]):active,
+.theme-toggle-btn:active,
+button[type="button"]:not([style*="background"]):active,
+button[onclick*="reset"]:active {
+  background-color: var(--text-main) !important;  /* 🚀 自動抓取目前主題的主文字顏色（深色時為白，淺色時為黑） */
+  color: var(--bg-color) !important;              /* 🚀 自動抓取目前主題的背景顏色（深色時為黑，淺色時為白） */
+  box-shadow: 0 0 10px var(--border-color);
+}
+
+/* 4. 情況二：彩色按鈕 (快速選單中帶有特定路線色彩的按鈕) */
+/* 不分深淺色，點擊時一律均勻調暗 20% 以加深顏色 */
+.quick-tags button[style*="background"]:active {
+  filter: brightness(0.8) contrast(1.1); 
+}
+
+/* 1公里配速文字專屬高質感外框 (自動適配深淺色） */
+
+/* 外框卡片容器 */
+.pace-card-wrapper {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background-color: var(--result-bg);   /* 連動主程式的結果區塊背景色 */
+  border: 1px solid var(--border-color);  /* 連動主題邊框線 */
+  border-radius: 8px;                    /* 圓角與整體系統一致 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* 微幅陰影增加層次感 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+/* 內部的文字樣式微調 */
+#speedPace {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-color);               /* 自動適配深淺色文字 */
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+/* ==========================================
+   --- 11. 4.0 版 全新歷史觀測紀錄日誌樣式 ---
+   ========================================== */
+.record-card {
+  margin-top: 20px;
+}
+
+.record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.record-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* 一鍵清空歷史紀錄按鈕 */
+.btn-clear-all {
+  background-color: #e74c3c !important;
+  color: white !important;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: auto !important;
+  margin: 0;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.btn-clear-all:hover {
+  opacity: 0.9;
+}
+
+.btn-clear-all:active {
+  transform: scale(0.95) translateY(1px);
+}
+
+/* 防止手機版網頁被表格爆開的外框 */
+.record-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 6px;
+}
+
+/* 觀測日誌主表格 */
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  white-space: nowrap; /* 防止欄位文字在手機上被醜陋地折行 */
+}
+
+.record-table th {
+  padding: 12px 10px;
+  border-bottom: 2px solid var(--border-color);
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.record-table tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.15s ease;
+}
+
+/* 輕微的滑過高亮效果，增強工具書視覺感 */
+.record-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+.light-mode .record-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.01);
+}
+
+.record-table td {
+  padding: 12px 10px;
+  vertical-align: middle;
+}
+
+/* 🎯 4.5版的核心實測：跨平台系統內建等寬數字，離線防跳動 */
+.record-data-cell {
+  font-family: 'Noto Sans Mono', ui-monospace, 'SFMono-Regular', 'Roboto Mono', Consolas, monospace !important;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-main);
+}
+
+/* 紀錄標籤樣式 */
+.record-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.badge-speed {
+  background-color: rgba(52, 152, 219, 0.15);
+  color: #3498db;
+}
+
+.badge-accel {
+  background-color: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+}
+
+/* ==========================================
+   --- 11. 觀測紀錄分頁與刪除按鈕實心化優化 ---
+   ========================================== */
+
+/* 🗑️ 單筆刪除按鈕：升級為帶有精美低飽和度底色的實心質感 */
+.btn-delete {
+  background: rgba(255, 77, 77, 0.15); 
+  color: #ff4d4d;
+  border: 1px solid rgba(255, 77, 77, 0.4);
+  border-radius: 6px;
+  padding: 5px 12px; /* 稍微加寬，實心按鈕比例更漂亮 */
+  
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700; /* 字體加粗，提升可讀性 */
+  transition: all 0.15s ease;
+}
+
+/* 滑過（Hover）時底色與線框同步加深 */
+.btn-delete:hover {
+  background: rgba(255, 77, 77, 0.25);
+  border-color: #ff4d4d;
+}
+
+/* 手機按壓（Active）時提供紮實的物理回饋 */
+.btn-delete:active {
+  background: rgba(255, 77, 77, 0.4);
+  transform: scale(0.95); /* 微微內縮，營造手機原生按鈕的踏實按壓感 */
+}
+
+/* 📑 觀測紀錄自動分頁控制列容器 */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 15px;
+    margin-bottom: 5px; /* 配合底下的 .reset-all-container 達成完美對稱 */
+}
+
+/* ◀ 與 ▶ 的小控制按鈕 */
+.btn-page {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-main, #fff);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+/* 淺色模式下的分頁按鈕外觀 */
+.light-mode .btn-page {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-main, #333);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.btn-page:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+}
+.light-mode .btn-page:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* 已經到第一頁或最後一頁時的停用狀態 */
+.btn-page:disabled {
+    opacity: 0.25;
+    cursor: not-allowed; /* 游標變禁止符號防手殘 */
+}
+
+/* 中間的「1 / 2」頁碼提示文字 */
+.page-info {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--text-main, #fff);
+    font-family: 'Noto Sans Mono', monospace; /* 數字等寬，翻頁時數字絕對不會左右抖動 */
+}
+
+/* 提示查無資料的空狀態 */
+.record-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 30px 10px !important;
+  font-size: 14px;
+}
+  </style>
+<!--4.1.0改進於4.0.1內容：
+1.修正紀錄功能的計算結果紀錄bug。
+2.更改紀錄功能頁數顯示限制。
+3.修正主題切換時的文字錯誤。
+4.修正清空全部時，頁碼不對應問題。
+5.優化紀錄表格格式。-->
+<div class="calculator">
+  <!-- 頂部獨立控制列：徹底避免遮擋標題 -->
+  <div class="top-controls">
+    <button type="button" id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()">淺色模式</button>
+    <div hidden id="dev-theme-simulator" style="background: #e0e0e0; padding: 8px; text-align: center; border-bottom: 2px solid #ccc; font-size: 13px;">
+  <span>測試專用（模擬手機系統主題）：</span>
+  <button onclick="simulateSystemTheme('light')" style="padding: 4px 8px; margin: 0 4px; cursor: pointer;">模擬系統：淺色</button>
+  <button onclick="simulateSystemTheme('dark')" style="padding: 4px 8px; margin: 0 4px; cursor: pointer;">模擬系統：深色</button>
+</div>
+
+  </div>
+
+  <h1>通過速度/起動加速度計算</h1>
+
+  <!-- 1. 快速選單 -->
+  <label>快速選單</label>
+  <div class="quick-tags">
+    <button type="button" onclick="setTrain('700T')">高鐵 700T</button>
+    <button type="button" onclick="setTrain('PPE500')">PP自強E500</button>
+    <button type="button" onclick="setTrain('3000')">新自強</button>
+    <button type="button" onclick="setTrain('900')">EMU900</button>
+    <button type="button" onclick="setTrain('800')">EMU800</button>
+    <button type="button" onclick="setTrain('700')">EMU700</button>
+    <button type="button" onclick="setTrain('500')">EMU500 8節</button>
+    <button type="button" onclick="setTrain('301')">北捷高運量</button>
+    <button type="button" onclick="setTrain('370')">APM256</button>
+  </div>
+
+  <!-- 2. 核心數據輸入區域 -->
+  <div class="input-section">
+    <div class="input-group">
+      <label>數據輸入：代碼或名稱(會自動補齊)／秒數／末速</label>
+      <div class="horizontal-inputs">
+  <div class="autocomplete-wrapper">
+    <input type="text" id="trainCode" placeholder="代碼" oninput="handleCodeInput()" autocomplete="off">
+  </div>
+  <input type="number" id="seconds" placeholder="時間 (s)" step="0.001" inputmode="decimal">
+  <input type="number" id="vFinal" placeholder="末速 (km/h)" value="0" step="0.1">
+</div>
+
+      <div class="label-hint">
+        加速度：啟動模式末速預設為0，速差模式請填離站速
+      </div>
+    </div>
+
+    <!-- 秒數小算盤 -->
+    <div class="input-group helper-box">
+  <label class="helper-label">秒數小算盤</label>
+  <div class="helper-inputs">
+    <input type="number" id="m1" placeholder="分" inputmode="numeric" pattern="[0-9]*" autocomplete="off"> : 
+    <input type="number" id="s1" placeholder="秒" inputmode="decimal" step="0.001" autocomplete="off">
+    
+    <span class="operator">－</span>
+    
+    <input type="number" id="m2" placeholder="分" inputmode="numeric" pattern="[0-9]*" autocomplete="off"> : 
+    <input type="number" id="s2" placeholder="秒" inputmode="decimal" step="0.001" autocomplete="off">
+  </div>
+  <div class="helper-btns">
+    <button type="button" onclick="quickTimeCalc()" class="btn-fill">計算並回填 時間(s)</button>
+    <button type="button" onclick="resetTimeCalc()" class="btn-clear">清空算盤</button>
+  </div>
+</div>
+
+
+    <!-- 3. 動態車廂配置 -->
+    <div class="input-group">
+      <label>車廂配置與基準長度</label>
+      <div class="parts-box" id="partsBox">
+        <div class="placeholder-text">點選上方按鈕或輸入代碼帶入配置</div>
+      </div>
+    </div>
+    <hr>
+
+    <!-- 4. 速度計算區域 -->
+    <div class="btn-row">
+      <button type="button" onclick="calculateSpeed()" class="calc-btn">計算通過時速</button>
+      <button type="button" onclick="resetSpeed()" class="reset-btn">清空速度</button>
+    </div>
+
+    <div class="result-box" id="resultSpeed">
+      <div class="speed" id="mainSpeed">-- <span class="unit">km/h</span></div>
+      <div class="info" id="speedInfo">平均速度計算結果</div>
+
+      <div class="pace-card-wrapper">
+  <div id="speedPace">相當於在 -- 秒內走了 1 公里</div>
+</div>
+
+
+    </div>
+
+    <!-- 5. 加速度計算區域 -->
+    <div class="btn-row">
+      <button type="button" onclick="calculateAccel()" class="calc-btn accel-theme">計算起動加速度</button>
+      <button type="button" onclick="resetAccel()" class="reset-btn">清空加速度</button>
+    </div>
+
+    <div class="result-box" id="resultAccel">
+      <div class="speed light-speed" id="mainAccel">-- <span class="unit">m/s²</span></div>
+      <div class="info" id="accelInfo">平均加速度計算結果</div>
+    </div>
+    <!--加速度圖表 -->
+    <div class="graph-container">
+    <div id="graphPlaceholder" class="graph-placeholder">
+        分析數據後，在此動態繪製 V-T 圖
+    </div>
+    <svg id="vtGraph" width="500" height="600"></svg>
+</div>
+    
+    <div class="card record-card">
+  <div class="record-header">
+    <h3>計算紀錄：</h3>
+    <button type="button" class="btn-clear-all" onclick="RecordManager.clearAll()">清空所有紀錄</button>
+  </div>
+  
+  <div class="table-wrapper">
+
+<div class="record-table-wrapper">
+    <table class="record-table">
+        <thead>
+            <tr>
+                <th>觀測時間</th>
+                <th>車型代碼</th>
+                <th>紀錄類別</th>
+                <th>觀測數據</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="recordTableBody">
+            </tbody>
+    </table>
+</div>
+
+<div class="reset-all-container">
+    <button type="button" onclick="resetAll()" class="btn-danger">清空整頁 (包括紀錄)</button>
+</div>
+
+  <div class="reference-guide">
+    <div class="guide-title">完整代碼/名稱表</div>
+    <div class="guide-content">
+      <table>
+        <!-- 高鐵系列 -->
+        <tr><td colspan="2" class="category-title">高鐵</td></tr>
+        <tr><td>700T</td><td>高鐵 700T</td></tr>
+
+        <!-- 台鐵系列 -->
+        <tr><td colspan="2" class="category-title">台鐵</td></tr>
+        <tr><td>PP</td><td>PP自強(機車留空)</td></tr>
+        <tr><td>PPE500</td><td>PP自強(E500)</td></tr>
+        <tr><td>PPE1000</td><td>PP自強(E1000)</td></tr>
+        <tr><td>T1000</td><td>太魯閣/TEMU1000</td></tr>
+        <tr><td>T2000</td><td>普悠瑪/TEMU2000</td></tr>
+        <tr><td>CK</td><td>莒光E500(8節)</td></tr>
+        <tr><td>500</td><td>EMU500/600 雙編組</td></tr>
+        <tr><td>600</td><td>EMU500/600 單編組</td></tr>
+        <tr><td>700</td><td>EMU700</td></tr>
+        <tr><td>800</td><td>EMU800</td></tr>
+        <tr><td>900</td><td>EMU900</td></tr>
+        <tr><td>3100</td><td>DR3100</td></tr>
+        <tr><td>1000</td><td>DR1000</td></tr>
+
+        <!-- 捷運系列 -->
+        <tr><td colspan="2" class="category-title">北部捷運</td></tr>
+        <tr><td>301/321/341/371/381</td><td>台北捷運高運量電聯車</td></tr>
+        <tr><td>256/370</td><td>文湖線電聯車</td></tr>
+        <tr><td>610/101</td><td>新北環狀線電聯車</td></tr>
+        <tr><td>LRT</td><td>新北輕軌/行武者號</td></tr>
+        <tr><td>SY</td><td>新北三鶯線電聯車</td></tr>
+        <tr><td>MA1</td><td>機捷普通車/機捷1000型</td></tr>
+        <tr><td>MA2</td><td>機捷直達車/機捷2000型</td></tr>
+
+        <tr><td colspan="2" class="category-title">中部捷運</td></tr>
+        <tr><td>MT</td><td>台中捷運綠線電聯車</td></tr>
+
+        <tr><td colspan="2" class="category-title">南部捷運</td></tr>
+        <tr><td>CAF</td><td>高捷輕軌 CAF Urbos 3</td></tr>
+        <tr><td>CIS</td><td>高捷輕軌 Citadis 305</td></tr>
+        <tr><td>MK</td><td>高雄捷運高運量電聯車</td></tr>
+      </table>
+    </div>
+  </div>
+  
+  <div class="reference-guide">
+    <div class="guide-title">公式解釋</div>
+    <div class="guide-content">
+      <table>
+        <tr><td>平均速度</td><td>列車長÷通過持續時間</td></tr>
+        <tr><td>加速度 Ⅰ (末速未知)</td><td>列車長×2/加速持續時間²</td></tr>
+        <tr><td>加速度 Ⅱ (末速已知)</td><td>[末速-初速(0)]/加速持續時間</td></tr>
+        <tr><td>加速度計算說明：</td><td>加速度數值為利用列車長度推導出。與列車速相同，尋找基準點，測量加速度持續時間，即可得。</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+    <script>
+      // --- 1. 車輛資料庫 (修復重複 Key 衝突版) ---
+const TRAIN_DB = {
+    "700T": { name: "高鐵 700T", head: 26.75, mid: 24.5, defH: 2, defM: 10 },
+    "3000": { name: "EMU3000", head: 21.35, mid: 20.3, defH: 2, defM: 10 },
+    "900":  { name: "EMU900", head: 21.58, mid: 20.3, defH: 2, defM: 8 },
+    "800":  { name: "EMU800", head: 21.25, mid: 20.3, defH: 2, defM: 6 },
+    "700":  { name: "EMU700", head: 20.741, mid: 20.3, defH: 2, defM: 6 },
+    "500":  { name: "EMU500/600 雙", head: 20.33, mid: 20.33, defH: 2, defM: 6 },
+    "600":  { name: "EMU500/600 單", head: 20.33, mid: 20.33, defH: 2, defM: 2 },
+    "T1000":{ name: "TEMU1000 (太魯閣)", head: 21.995, mid: 20.5, defH: 2, defM: 6 },
+    "T2000":{ name: "TEMU2000 (普悠瑪)", head: 22.095, mid: 20.7, defH: 2, defM: 6 },
+    "256":  { name: "文湖線電聯車 (APM256)", head: 13.78, mid: 13.78, defH: 2, defM: 2 },
+    "370":  { name: "BT370", head: 13.78, mid: 13.78, defH: 2, defM: 2 },
+    "101":  { name: "新北環狀線電聯車", head: 17.455, mid: 16.76, defH: 2, defM: 2 },
+    "610":  { name: "新北環狀線電聯車", head: 17.455, mid: 16.76, defH: 2, defM: 2 },
+    "3100": { name: "DR3100", head: 20.274, mid: 20.274, defH: 2, defM: 6 },
+    "1000": { name: "DR1000", head: 19.774, mid: 19.774, defH: 2, defM: 2 },
+    "CK":   { name: "莒光 E500", head: 20.77, mid: 20.25, defH: 1, defM: 8 },
+    "321":  { name: "北捷 321型", head: 23.5, mid: 23.5, defH: 2, defM: 4 },
+    "341":  { name: "北捷 341型", head: 23.5, mid: 23.5, defH: 2, defM: 4 },
+    "301":  { name: "北捷 301型", head: 23.5, mid: 23.5, defH: 2, defM: 4 },
+    "371":  { name: "北捷 371型", head: 23.5, mid: 23.5, defH: 2, textH: 2, defM: 4 },
+    "381":  { name: "北捷 381型", head: 23.5, mid: 23.5, defH: 2, defM: 4 },
+    "MA1":  { name: "機捷 1000型 (普通車)", head: 20.78, mid: 20.25, defH: 2, defM: 2 },
+    "MA2":  { name: "機捷 2000型 (直達車)", head: 20.78, mid: 20.25, defH: 2, defM: 3 },
+    "MT":   { name: "台中捷運綠線電聯車", head: 22.17, mid: 22.17, defH: 2, defM: 0 },
+    "MK":   { name: "高捷高運量", head: 21.56, mid: 19.5, defH: 2, defM: 1 },
+    "CAF":  { name: "高雄輕軌 CAF", full: 34.166, isFull: true },
+    "CIS":  { name: "高雄輕軌 Citadis", full: 33.400, isFull: true },
+    "LRT":  { name: "新北輕軌 (行武者號)", full: 34.450, isFull: true },
+    "SY":   { name: "三鶯線", full: 35.000, isFull: true, isSY: true },
+    "PP":   { name: "PP自強", e5: 20.770, e1: 17.211, c: 20.3, defE5: 2, defE1: 0, defC: 12 }
+};
+
+// 台灣軌道車輛官方起動加速度規格資料庫 (單位：m/s²)
+const TRAIN_SPEC_ACCEL = {
+    "700T": 0.5556, "PP": null, "PPE500": null, "PPE1000": null, "T1000": 0.6111, "T2000": 0.5111, "CK": null,
+    "3000": 0.7000, "500": 0.8000, "600": 0.8000, "700": 0.7000, "800": 0.7000, "900": 0.7000, "3100": 0.1389, "1000": null,
+    "301/321/341/371/381": 1.0000, "256": 1.3000, "370": 1.0000, "610/101": 1.2000, "LRT": 1.1400, "MA1": 1.1000, "MA2": 1.1000,
+    "MT": 1.3000, "CAF": 1.3000, "CIS": null, "MK": 1.0000
+};
+
+// 全域變數：儲存當前選中車型的官方規格值 (m/s²)
+let currentTrainSpecAccel = null;
+
+
+// --- 2. 全域常駐節點宣告 ---
+const elSec = document.getElementById('seconds');
+const elCode = document.getElementById('trainCode');
+const elVFinal = document.getElementById('vFinal');
+const elPartsBox = document.getElementById('partsBox');
+const elS2 = document.getElementById("s2");
+
+// --- 3. 主題切換邏輯 (3.5.1 邏輯瑕疵修正版) ---
+function toggleTheme() {
+    const body = document.body;
+    body.classList.toggle('light-mode');
+    const btn = document.getElementById('themeToggle');
+    if (!btn) return; // 補上安全防呆
+    
+    if (body.classList.contains('light-mode')) {
+        btn.innerText = '深色模式';
+        localStorage.setItem('calculator-theme', 'light');
+    } else {
+        btn.innerText = '淺色模式';
+        localStorage.setItem('calculator-theme', 'dark');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('calculator-theme');
+    
+    // 🚀 核心修正 1：補上這行漏掉的宣告，驚嘆號直接消失！
+    const btn = document.getElementById('themeToggle'); 
+    
+    // 🚀 核心修正 2：順著你 3.5 的白底原生邏輯
+    // 如果紀錄是 dark，或是「第一次打開（null）」你想讓它預設黑底
+    if (savedTheme === 'dark' || savedTheme === null) {
+        document.body.classList.add('dark-mode');
+        if (btn) btn.innerText = '淺色模式';
+        if (savedTheme === null) {
+            localStorage.setItem('calculator-theme', 'dark'); // 第一次來就幫他鎖定深色
+        }
+    } else {
+        // 如果上次是 light，就維持原生白底，按鈕顯示深色模式
+        if (btn) btn.innerText = '深色模式';
+    }
+});
+
+
+
+// --- 4. 輸入與 UI 邏輯 ---
+// 1. 修改原本的 handleCodeInput 函式
+function handleCodeInput() {
+    let code = elCode.value.toUpperCase();
+     // 🚀 觸活動態提示清單生成
+    buildAutocompleteSuggestions(code);
+
+    if (code.startsWith('PP') || TRAIN_DB[code]) {
+        updatePartsUI(code);
+    }
+    updateSpecAccelValue(code);
+}
+
+// 2. 追加以下三個優化函式至 script.js 底步
+function buildAutocompleteSuggestions(val) {
+    // 先清空舊有的提示清單
+    closeAllLists();
+    if (!val) return false;
+
+    // 建立提示清單的容器 Div
+    const listCont = document.createElement("DIV");
+    listCont.setAttribute("id", "trainCode-autocomplete-list");
+    listCont.setAttribute("class", "autocomplete-items");
+    
+    // 將清單掛在輸入框的父容器 (.autocomplete-wrapper) 底下
+    elCode.parentNode.appendChild(listCont);
+
+    // 走訪資料庫尋找匹配車型
+    for (let key in TRAIN_DB) {
+        const train = TRAIN_DB[key];
+        
+        // 條件：如果輸入的文字匹配「代碼開頭」或者「名稱包含該文字」
+        if (key.toUpperCase().startsWith(val) || train.name.toUpperCase().includes(val)) {
+            const item = document.createElement("DIV");
+            item.className = "autocomplete-item";
+            
+            // 依要求：不顯示代碼，純粹顯示直觀的名稱 (js 的 name)
+            item.innerText = train.name;
+            
+            // 監聽點擊事件
+            item.addEventListener("click", function() {
+                elCode.value = key; // 自動回填對應代碼
+                setTrain(key);      // 觸發原本的系統設定與積木渲染
+                closeAllLists();    // 關閉清單
+            });
+            
+            listCont.appendChild(item);
+        }
+    }
+}
+
+// 關閉所有開啟的提示清單
+function closeAllLists(elmnt) {
+    const x = document.getElementsByClassName("autocomplete-items");
+    for (let i = 0; i < x.length; i++) {
+        if (elmnt != x[i] && elmnt != elCode) {
+            x[i].parentNode.removeChild(x[i]);
+        }
+    }
+}
+
+// 當使用者點擊網頁其他任何地方時，自動收起提示清單
+document.addEventListener("click", function (e) {
+    closeAllLists(e.target);
+});
+
+function setTrain(code) {
+    elCode.value = code;
+    updatePartsUI(code);
+    updateSpecAccelValue(code);
+}
+
+function updateSpecAccelValue(code) {
+    let lookupCode = code.toUpperCase();
+    if (['301','321','341','371','381'].includes(lookupCode)) {
+        lookupCode = "301/321/341/371/381";
+    }
+    if (lookupCode in TRAIN_SPEC_ACCEL) {
+        currentTrainSpecAccel = TRAIN_SPEC_ACCEL[lookupCode];
+    } else {
+        currentTrainSpecAccel = null;
+    }
+}
+
+function updatePartsUI(code) {
+    let targetCode = code.startsWith('PP') ? 'PP' : code.toUpperCase();
+    const data = TRAIN_DB[targetCode];
+    if (!data) return;
+
+    if (data.isFull) {
+        elPartsBox.innerHTML = `
+            <div id="visualTrainTrack"></div>
+            <div class="part-row">
+                <div class="part-name">${data.name}</div>
+                <div style="color:var(--accent-color); font-weight:bold; font-size:0.85rem; text-align:center;">${data.full}m</div>
+            </div>`;
+    } else if (targetCode === 'PP') {
+        elPartsBox.innerHTML = `
+            <div id="visualTrainTrack"></div>
+            <div class="part-row"><div class="part-name">E500 <span style="font-size:0.7rem; font-weight:bold;">(20.77m)</span></div><input type="number" id="e5Cnt" value="${code === 'PPE500' ? 2 : 0}" min="0"></div>
+            <div class="part-row"><div class="part-name">E1000 <span style="font-size:0.7rem; font-weight:bold;">(17.21m)</span></div><input type="number" id="e1Cnt" value="${code === 'PPE1000' ? 2 : 0}" min="0"></div>
+            <div class="part-row"><div class="part-name">客車 <span style="font-size:0.7rem; font-weight:bold;">(20.3m)</span></div><input type="number" id="cCnt" value="12" min="0"></div>`;
+    } else {
+        elPartsBox.innerHTML = `
+            <div id="visualTrainTrack"></div>
+            <div class="part-row"><div class="part-name">先頭 <span style="font-size:0.7rem; font-weight:bold;">(${data.head}m)</span></div><input type="number" id="hCnt" value="${data.defH}" min="0"></div>
+            <div class="part-row"><div class="part-name">中間 <span style="font-size:0.7rem; font-weight:bold;">(${data.mid}m)</span></div><input type="number" id="mCnt" value="${data.defM}" min="0"></div>`;
+    }
+
+    const inputs = elPartsBox.querySelectorAll('input[type="number"]');
+    inputs.forEach(input => {
+        input.addEventListener('input', (e) => {
+            if (targetCode === 'PP') {
+                const e5Input = document.getElementById('e5Cnt');
+                const e1Input = document.getElementById('e1Cnt');
+                if (e.target.id === 'e5Cnt' && +e5Input.value > 0) {
+                    if (e1Input) e1Input.value = 0;
+                } else if (e.target.id === 'e1Cnt' && +e1Input.value > 0) {
+                    if (e5Input) e5Input.value = 0;
+                }
+            }
+            renderTrainVisual();
+        });
+    });
+
+    renderTrainVisual();
+}
+
+// --- 5. 核心計算邏輯 ---
+function getCurrentTotalLength() {
+    const rawCode = elCode.value.toUpperCase();
+    const targetCode = rawCode.startsWith('PP') ? 'PP' : rawCode;
+    const data = TRAIN_DB[targetCode];
+    if (!data) return 0;
+    if (data.isFull) return data.full;
+    if (targetCode === 'PP') {
+        return ((+document.getElementById('e5Cnt')?.value || 0) * 20.77) +
+               ((+document.getElementById('e1Cnt')?.value || 0) * 17.211) +
+               ((+document.getElementById('cCnt')?.value || 0) * 20.3);
+    }
+    return ((+document.getElementById('hCnt')?.value || 0) * data.head) +
+           ((+document.getElementById('mCnt')?.value || 0) * data.mid);
+}
+
+function calculateSpeed() {
+    const totalL = getCurrentTotalLength();
+    const sec = parseFloat(elSec.value);
+    if (!totalL || !sec || sec <= 0) return;
+
+    const speed = (totalL / sec) * 3.6;
+    const resultDiv = document.getElementById('mainSpeed');
+    const infoDiv = document.getElementById('speedInfo');
+
+    if (speed >= 1000) {
+        resultDiv.innerHTML = `<span style="color:#ff5252;">${speed.toExponential(2)}</span> <span class="unit">km/h</span>`;
+        infoDiv.innerHTML = `<span style="color:#ff5252; font-weight:bold;">⚠️ 數據異常</span>`;
+    } else if (speed > 350) {
+        resultDiv.innerHTML = `<span style="color:#ff5252;">${speed.toFixed(2)}</span> <span class="unit">km/h</span>`;
+        infoDiv.innerHTML = `<span style="color:#ff5252; font-weight:bold;">⚠️ 數據異常</span>`;
+    } else {
+        resultDiv.innerHTML = `${speed.toFixed(2)} <span class="unit">km/h</span>`;
+        infoDiv.innerText = `總長：${totalL.toFixed(2)} m | 時間：${sec} s`;
+    }
+
+    if (speed > 0) {
+        const paceSeconds = (3600 / speed).toFixed(2);
+        document.getElementById('speedPace').innerHTML = 
+            `相當於在 <strong style="font-size: 1.15rem; color: var(--accent-color, #ff9800);">${paceSeconds}</strong> 秒內走了 <strong>1 公里</strong>`;
+        document.getElementById('speedPace').style.fontSize = "0.875rem";
+        document.getElementById('speedPace').style.color = "var(--text-color, #ccc)";
+    } else {
+        document.getElementById('speedPace').innerHTML = `相當於在 <strong>--</strong> 秒內走了 1 公里`;
+        document.getElementById('speedPace').style.fontSize = "0.875rem";
+        document.getElementById('speedPace').style.color = "#888";
+    }
+    
+    // 精準儲存速度紀錄
+    if (typeof RecordManager !== 'undefined'){
+        RecordManager.saveCurrent('speed');
+    }
+}
+
+function calculateAccel() {
+    const totalL = getCurrentTotalLength();
+    const sec = parseFloat(elSec.value);
+    const vF_kmh = parseFloat(elVFinal.value) || 0;
+    if (!totalL || !sec || sec <= 0) return;
+
+    let a = (vF_kmh === 0) ? (2 * totalL) / Math.pow(sec, 2) : (vF_kmh / 3.6) / sec;
+    const accel_kmhs = a * 3.6;
+    
+    const resultDiv = document.getElementById('mainAccel');
+    const infoDiv = document.getElementById('accelInfo');
+
+    resultDiv.style.color = "var(--accel-btn-color, #e67e22)"; 
+
+    if (a >= 10) {
+        resultDiv.innerHTML = `<span style="color:#ff5252;">${a.toExponential(2)}</span> <span class="unit">m/s²</span>`;
+        infoDiv.innerHTML = `<span style="color:#ff5252; font-weight:bold;">⚠️ 數據異常 (${accel_kmhs.toExponential(2)} km/h/s)</span>`;
+    } else if (accel_kmhs > 4.5) {
+        resultDiv.innerHTML = `<span style="color:#ff5252;">${a.toFixed(3)}</span> <span class="unit">m/s²</span>`;
+        infoDiv.innerHTML = `<span style="color:#ff5252; font-weight:bold;">⚠️ 數據異常 (${accel_kmhs.toFixed(2)} km/h/s)</span>`;
+    } else {
+        resultDiv.innerHTML = `${a.toFixed(3)} <span class="unit">m/s²</span>`;
+        const modeText = vF_kmh === 0 ? `啟動模式` : `速差模式`;
+        const detailText = vF_kmh === 0 ? `推算末速: ${(a*sec*3.6).toFixed(1)} km/h` : `末速: ${vF_kmh} km/h`;
+        infoDiv.innerHTML = `${modeText} | <strong>${accel_kmhs.toFixed(2)} km/h/s</strong><br><small>${detailText}</small>`;
+    }
+
+    drawAccelerationGraph(a, currentTrainSpecAccel, sec);
+  
+    // 🌟 修正點：補上缺失的 'accel' 參數，讓起動加速度能精準被儲存
+    if (typeof RecordManager !== 'undefined'){
+        RecordManager.saveCurrent('accel');
+    }
+}
+
+// --- 6. 秒數小算盤核心邏輯 ---
+function quickTimeCalc() {
+    const m1 = +document.getElementById('m1').value || 0;
+    const s1 = +document.getElementById('s1').value || 0;
+    const m2 = +document.getElementById('m2').value || 0;
+    const s2 = +document.getElementById('s2').value || 0;
+
+    const diff = Math.abs(((m1 * 60) + s1) - ((m2 * 60) + s2));
+
+    if (diff >= 0) {
+        elSec.value = diff.toFixed(3);
+        elSec.style.borderColor = 'var(--accent-color)';
+        elSec.style.boxShadow = '0 0 10px rgba(255,152,0,0.5)';
+        setTimeout(() => {
+            elSec.style.borderColor = 'var(--input-border)';
+            elSec.style.boxShadow = 'none';
+        }, 500);
+    }
+    // 🌟 修正點：移除了原本在這裡會誤觸發的 RecordManager.saveCurrent('accel')，防止提早寫入鬼影舊數據
+}
+
+// --- 7. 手機鍵盤「前往/下一步」終極防線 ---
+if (elS2) {
+    elS2.addEventListener("input", () => { quickTimeCalc(); });
+    elS2.addEventListener("keyup", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            quickTimeCalc(); 
+            const firstInput = elPartsBox.querySelector('input');
+            if (firstInput) {
+                firstInput.focus();
+                firstInput.select(); 
+            } else {
+                elS2.blur(); 
+            }
+        }
+    });
+}
+
+
+// --- 8. 重置系列功能 ---
+function resetSpeed() {
+    document.getElementById('mainSpeed').innerHTML = `-- <span class="unit">km/h</span>`;
+    document.getElementById('speedInfo').innerText = "平均速度計算結果";
+    document.getElementById('speedPace').innerHTML = `相當於在 -- 秒內走了 1 公里`;
+}
+
+function resetAccel() {
+    const resultDiv = document.getElementById('mainAccel');
+    resultDiv.innerHTML = `-- <span class="unit">m/s²</span>`;
+    resultDiv.style.color = ""; 
+    document.getElementById('accelInfo').innerText = "平均加速度計算結果";
+    if (elVFinal) elVFinal.value = '0';
+    const svg = document.getElementById("vtGraph");
+    const placeholder = document.getElementById("graphPlaceholder");
+    if (svg) svg.innerHTML = "";
+    if (placeholder) placeholder.style.display = "flex";
+}
+
+// ==========================================================================
+// --- 7. 主題切換與按鈕控制 (去緩存、硬體同步優化完全體) ---
+// ==========================================================================
+function toggleTheme() {
+    const body = document.body;
+    const themeBtn = document.getElementById('themeToggle');
+    if (!themeBtn) return; // 補上安全防呆，防止節點不存在時報錯
+    
+    // 純粹進行畫面的樣式翻轉，絕不寫入 localStorage 鎖定
+    body.classList.toggle('light-mode');
+    
+    // 💡 修正點：與第 10 區塊的系統硬體訊號文字邏輯完全同步
+    if (body.classList.contains('light-mode')) {
+        themeBtn.innerText = "深色模式"; // 畫面是白底（淺色），按鈕提示：按下可變黑
+    } else {
+        themeBtn.innerText = "淺色模式"; // 畫面是黑底（深色），按鈕提示：按下可變白
+    }
+}
+
+// 💡 頁面載入時的智慧初始化（完全聽從第 10 區塊的原生硬體訊號）
+function initTheme() {
+    // 🚀 拋棄舊有 localStorage 緩存干擾，一開網頁直接呼叫第 10 區塊的系統即時偵測
+    if (typeof handleThemeChange === 'function' && typeof darkModeMediaQuery !== 'undefined') {
+        handleThemeChange(darkModeMediaQuery);
+    }
+}
+
+// 確保初始化在 DOM 載入後執行
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTheme);
+} else {
+    initTheme();
+}
+
+
+// --- 8. 火車編組積木渲染引擎 ---
+function renderTrainVisual() {
+    const track = document.getElementById('visualTrainTrack');
+    if (!track) return;
+    
+    track.style.display = "flex";
+    track.style.flexDirection = "row";
+    track.style.flexWrap = "nowrap";
+    track.style.alignItems = "center";
+    track.style.justify = "flex-start"; 
+    track.style.gap = "4px";
+    track.style.background = "rgba(0, 0, 0, 0.3)";
+    track.style.padding = "10px";
+    track.style.borderRadius = "6px";
+    track.style.marginBottom = "16px";
+    track.style.width = "100%";               
+    track.style.boxSizing = "border-box";      
+    track.style.overflowX = "auto";            
+    track.style.webkitOverflowScrolling = "touch"; 
+    track.style.borderBottom = "2px dashed #666";
+
+    track.innerHTML = '';
+
+    const rawCode = elCode.value.toUpperCase();
+    const targetCode = rawCode.startsWith('PP') ? 'PP' : rawCode;
+    const data = TRAIN_DB[targetCode];
+    if (!data) return;
+
+    let html = '';
+    const baseBlockStyle = "flex: 0 0 auto; min-width: 32px; max-width: 50px; height: 22px; font-size: 10px; font-weight: bold; color: #fff; display: flex; align-items: center; justify-content: center; border-radius: 3px; text-shadow: 1px 1px 0px rgba(0,0,0,0.5); box-shadow: inset 0 -3px 0 rgba(0,0,0,0.2); box-sizing: border-box;";
+
+    if (data.isFull) {
+        const lrtColor = "#2ecc71"; 
+        const loopCount = data.isSY ? 2 : 5;
+        
+        for (let i = 0; i < loopCount; i++) {
+            let label = "M";
+            let radiusStyle = "";
+            
+            if (i === 0) {
+                label = "H";
+                radiusStyle = "border-top-left-radius: 8px; border-bottom-left-radius: 4px;";
+            } else if (i === loopCount - 1) { 
+                label = "H";
+                radiusStyle = "border-top-right-radius: 8px; border-bottom-right-radius: 4px;";
+            }
+            
+            html += `<div style="${baseBlockStyle} background: ${lrtColor}; ${radiusStyle}" title="${data.name}">${label}</div>`;
+        }
+    } else if (targetCode === 'PP') { // 🚀 修正：結構完美對接，不再被包在 if (data.isFull) 裡面
+        const e5 = +document.getElementById('e5Cnt')?.value || 0;
+        const e1 = +document.getElementById('e1Cnt')?.value || 0;
+        const c = +document.getElementById('cCnt')?.value || 0;
+
+        const e5Left = Math.ceil(e5 / 2);
+        const e5Right = e5 - e5Left;
+        const e1Left = Math.ceil(e1 / 2);
+        const e1Right = e1 - e1Left;
+
+        for(let i=0; i<e5Left; i++) html += `<div style="${baseBlockStyle} background: #ff9800; border-top-left-radius: 6px;" title="E500">E5</div>`;
+        for(let i=0; i<e1Left; i++) html += `<div style="${baseBlockStyle} background: #e74c3c; border-top-left-radius: 6px;" title="E1000">E1</div>`;
+        for(let i=0; i<c; i++) html += `<div style="${baseBlockStyle} background: #393e46;" title="客車">C</div>`;
+        for(let i=0; i<e1Right; i++) html += `<div style="${baseBlockStyle} background: #e74c3c; border-top-right-radius: 6px;" title="E1000">E1</div>`;
+        for(let i=0; i<e5Right; i++) html += `<div style="${baseBlockStyle} background: #ff9800; border-top-right-radius: 6px;" title="E500">E5</div>`;
+    } else {
+        const currentH = +document.getElementById('hCnt')?.value || 0;
+        const currentM = +document.getElementById('mCnt')?.value || 0;
+        const baseH = data.defH || 2;
+        const baseM = data.defM || 4;
+        const trainGroups = baseH > 0 ? Math.floor(currentH / baseH) : 1;
+        
+        if (trainGroups >= 1) {
+            const mPerGroup = Math.floor(currentM / trainGroups);
+            let mRemainder = currentM % trainGroups;
+
+            for (let g = 0; g < trainGroups; g++) {
+                const hLeft = baseH > 1 ? 1 : baseH;
+                const hRight = baseH > 1 ? 1 : 0;
+                const thisGroupM = mPerGroup + (g === trainGroups - 1 ? mRemainder : 0);
+
+                if (hLeft > 0) {
+                    html += `<div style="${baseBlockStyle} background: #00adb5; border-top-left-radius: 8px; border-bottom-left-radius: 4px;" title="先頭車">H</div>`;
+                }
+                for (let i = 0; i < thisGroupM; i++) {
+                    html += `<div style="${baseBlockStyle} background: #393e46;" title="中間車">M</div>`;
+                }
+                if (hRight > 0) {
+                    html += `<div style="${baseBlockStyle} background: #00adb5; border-top-right-radius: 8px; border-bottom-right-radius: 4px;" title="先頭車">H</div>`;
+                }
+            }
+            const orphanH = currentH % baseH;
+            for (let i = 0; i < orphanH; i++) {
+                html += `<div style="${baseBlockStyle} background: #00adb5; border-radius: 4px;" title="獨立先頭車">H</div>`;
+            }
+        } else {
+            if (currentH > 0) html += `<div style="${baseBlockStyle} background: #00adb5; border-top-left-radius: 8px;" title="先頭車">H</div>`;
+            for (let i = 0; i < currentM; i++) html += `<div style="${baseBlockStyle} background: #393e46;" title="中間車">M</div>`;
+            if (currentH > 1) html += `<div style="${baseBlockStyle} background: #00adb5; border-top-right-radius: 8px;" title="先頭車">H</div>`;
+        }
+    }
+    track.innerHTML = html;
+}
+
+// --- 9. 加速度雙線動態繪圖 (🚀 補全斷頭、整合自動適應寬度與彈性換行圖例) ---
+function drawAccelerationGraph(actualAccel, specAccel, totalTime) {
+    const svg = document.getElementById("vtGraph");
+    const placeholder = document.getElementById("graphPlaceholder");
+    if (!svg) return;
+    if (placeholder) placeholder.style.display = "none";
+    svg.innerHTML = "";
+
+    // 🌐 動態同步寬度：直接抓取 #partsBox 的實際寬度
+    const partsBoxWidth = elPartsBox ? elPartsBox.clientWidth : 500;
+    const svgWidth = partsBoxWidth;
+    const svgHeight = 300;
+
+    const paddingLeft = 55;
+    const paddingRight = 55;
+    const paddingTop = 30;
+    
+    const chartHeight = 195; // 黃金高度
+    const chartWidth = svgWidth - paddingLeft - paddingRight; // 寬度自動彈性撐滿
+
+    svg.setAttribute("width", svgWidth);
+    svg.setAttribute("height", svgHeight);
+
+    const vActualEnd = actualAccel * totalTime;
+    const vSpecEnd = specAccel ? (specAccel * totalTime) : 0;
+
+    const maxT = totalTime * 1.1; 
+    const maxV = Math.max(vActualEnd, vSpecEnd) * 1.1;
+
+    function getX(t) { return paddingLeft + (t / maxT) * chartWidth; }
+    function getY(v) { return paddingTop + chartHeight - (v / maxV) * chartHeight; }
+
+    const axisColor = "#4a5568";
+    const gridColor = "rgba(74, 85, 104, 0.25)";
+
+    const xOrigin = getX(0);
+    const yOrigin = getY(0);
+
+    // --- 📊 繪製網格與刻度 ---
+    const xTicks = [totalTime / 2, totalTime];
+    xTicks.forEach(t => {
+        const xPos = getX(t);
+        svg.innerHTML += `<line x1="${xPos}" y1="${yOrigin}" x2="${xPos}" y2="${getY(maxV / 1.1)}" stroke="${gridColor}" stroke-width="1" stroke-dasharray="2,2"/>`;
+        svg.innerHTML += `<text x="${xPos}" y="${yOrigin + 16}" font-size="10" fill="#718096" text-anchor="middle">${t.toFixed(1)}s</text>`;
+    });
+
+        const yTicks = [maxV * 0.33, maxV * 0.66, Math.max(vActualEnd, vSpecEnd)];
+    yTicks.forEach(v => {
+        const yPos = getY(v);
+        svg.innerHTML += `<line x1="${xOrigin}" y1="${yPos}" x2="${getX(maxT / 1.1)}" y2="${yPos}" stroke="${gridColor}" stroke-width="1" stroke-dasharray="2,2"/>`;
+        svg.innerHTML += `<text x="${xOrigin - 8}" y="${yPos + 4}" font-size="10" fill="#718096" text-anchor="end">${v.toFixed(1)}</text>`;
+    });
+
+    // --- 📐 繪製主要坐標軸 ---
+    svg.innerHTML += `<line x1="${xOrigin}" y1="${yOrigin}" x2="${xOrigin + chartWidth + 25}" y2="${yOrigin}" stroke="${axisColor}" stroke-width="1.5"/>`;
+    svg.innerHTML += `<line x1="${xOrigin}" y1="${paddingTop - 10}" x2="${xOrigin}" y2="${yOrigin}" stroke="${axisColor}" stroke-width="1.5"/>`;
+
+    svg.innerHTML += `<text x="${xOrigin + chartWidth + 30}" y="${yOrigin + 4}" font-size="11" fill="${axisColor}" font-weight="bold">時間</text>`;
+    svg.innerHTML += `<text x="${xOrigin}" y="${paddingTop - 15}" font-size="11" fill="${axisColor}" text-anchor="middle" font-weight="bold">速度</text>`;
+
+    const xActEnd = getX(totalTime);
+    const yActEnd = getY(vActualEnd);
+
+    // --- 🔴 實際線 (橘紅色 #e67e22) ---
+    svg.innerHTML += `
+        <line x1="${xOrigin}" y1="${yOrigin}" x2="${xActEnd}" y2="${yActEnd}" stroke="#e67e22" stroke-width="2.5" stroke-linecap="round" />
+        <circle cx="${xActEnd}" cy="${yActEnd}" r="4" fill="#e67e22" />
+    `;
+
+    // --- 🔵 規格線 (藍色 #3182ce) ---
+    if (specAccel !== null && specAccel > 0) {
+        const ySpecEnd = getY(vSpecEnd);
+        svg.innerHTML += `
+            <line x1="${xOrigin}" y1="${yOrigin}" x2="${xActEnd}" y2="${ySpecEnd}" stroke="#3182ce" stroke-width="1.5" stroke-dasharray="4,2" />
+            <circle cx="${xActEnd}" cy="${ySpecEnd}" r="4" fill="#3182ce" />
+        `;
+    }
+
+    // --- 🏷️ 下方圖例區域 (寬時並排，窄時透過 foreignObject 自動彈性換行) ---
+    const foY = svgHeight - 25; 
+    const foWidth = chartWidth + 30; 
+    
+    let legendHTML = `
+        <foreignObject x="${paddingLeft}" y="${foY}" width="${foWidth}" height="25" style="overflow: visible;">
+            <div style="
+                display: flex; 
+                flex-wrap: wrap; 
+                gap: 10px 24px; 
+                font-family: sans-serif; 
+                font-size: 12px; 
+                font-weight: bold; 
+                color: #718096;
+                line-height: 1;
+            ">
+                <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                    <span style="display: inline-block; width: 10px; height: 10px; background: #e67e22; border-radius: 50%;"></span>
+                    <span>實際：${actualAccel.toFixed(3)} m/s²</span>
+                </div>
+    `;
+
+    if (specAccel !== null && specAccel > 0) {
+        legendHTML += `
+                <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                    <span style="display: inline-block; width: 10px; height: 10px; background: #3182ce; border-radius: 50%;"></span>
+                    <span>規格：${specAccel.toFixed(3)} m/s²</span>
+                </div>
+        `;
+    }
+
+    legendHTML += `
+            </div>
+        </foreignObject>
+    `;
+    
+    svg.innerHTML += legendHTML;
+}
+
+// --- 10. 重置系列功能 (補全最後的輔助函式與重置邏輯) ---
+function resetSpeed() {
+    document.getElementById('mainSpeed').innerHTML = `-- <span class="unit">km/h</span>`;
+    document.getElementById('speedInfo').innerText = "平均速度計算結果";
+    document.getElementById('speedPace').innerHTML = `相當於在 -- 秒內走了 1 公里`;
+}
+
+function resetAccel() {
+    const resultDiv = document.getElementById('mainAccel');
+    resultDiv.innerHTML = `-- <span class="unit">m/s²</span>`;
+    resultDiv.style.color = ""; 
+    document.getElementById('accelInfo').innerText = "平均加速度計算結果";
+    if (elVFinal) elVFinal.value = '0';
+    const svg = document.getElementById("vtGraph");
+    const placeholder = document.getElementById("graphPlaceholder");
+    if (svg) svg.innerHTML = "";
+    if (placeholder) placeholder.style.display = "flex";
+}
+
+function resetTimeCalc() {
+    document.getElementById('m1').value = '';
+    document.getElementById('s1').value = '';
+    document.getElementById('m2').value = '';
+    document.getElementById('s2').value = '';
+}
+
+function resetAll() {
+    elSec.value = '';
+    elCode.value = '';
+    elVFinal.value = '0';
+    elPartsBox.innerHTML = '<div class="placeholder-text">點選上方按鈕或輸入代碼帶入配置</div>';
+    
+    resetTimeCalc();
+    resetSpeed();
+    resetAccel();
+    document.getElementById('speedPace').innerHTML = `相當於在 -- 秒內走了 1 公里`;
+    
+    // 🚀 優化點：重置時，強制讓分頁安全回到第 1 頁
+    if (typeof RecordManager !== 'undefined') {
+        RecordManager.currentPage = 1;
+        if (RecordManager.clearAll) {
+            RecordManager.clearAll();
+        }
+    }
+}
+
+// ==========================================================================
+// --- 7. 歷史觀測紀錄管理模組 (RecordManager - 完美修復版) ---
+// ==========================================================================
+const RecordManager = {
+    STORAGE_KEY: 'railway_calculator_records',
+    currentPage: 1,     
+    rowsPerPage: 5,     
+
+    init() {
+        this.render();
+    },
+
+        saveCurrent(forcedType) {
+        const elCode = document.getElementById('trainCode');
+        const trainCode = (elCode && elCode.value.trim()) ? elCode.value.trim().toUpperCase() : "未指定車型";
+        
+        let type = "";
+        let resultValue = "";
+
+        if (forcedType === 'accel') {
+            type = "起動加速度";
+            const elAccel = document.getElementById('mainAccel');
+            resultValue = elAccel ? elAccel.innerText.trim() : "--";
+        } else if (forcedType === 'speed') {
+            type = "通過速度";
+            const elSpeed = document.getElementById('mainSpeed');
+            resultValue = elSpeed ? elSpeed.innerText.trim() : "--";
+        } else {
+            return;
+        }
+
+        if (!resultValue || resultValue.includes("--")) return;
+
+        // 🕒 取得完整日期與時間 (例：2026/08/05 15:30:45)
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+        const newRecord = {
+            id: Date.now(),
+            time: `${dateStr} ${timeStr}`, // 組合年月日與時間
+            code: trainCode,
+            type: type,
+            result: resultValue
+        };
+
+        const records = this.getRecords();
+        records.unshift(newRecord);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(records));
+
+        this.currentPage = 1;
+        this.render();
+    },
+
+    getRecords() {
+        const data = localStorage.getItem(this.STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+    },
+
+    deleteItem(id) {
+        let records = this.getRecords();
+        records = records.filter(item => item.id !== id);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(records));
+        
+        const totalPages = Math.ceil(records.length / this.rowsPerPage);
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        if (this.currentPage < 1) this.currentPage = 1;
+
+        this.render();
+    },
+
+    clearAll() {
+        localStorage.removeItem(this.STORAGE_KEY);
+        this.currentPage = 1; 
+        this.render();
+    },
+    
+    changePage(page) {
+        this.currentPage = page;
+        this.render();
+    },
+
+    render() {
+        const tbody = document.getElementById('recordTableBody');
+        let paginationContainer = document.getElementById('pagination-controls');
+        
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const records = this.getRecords();
+
+        if (records.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="record-empty" style="text-align:center;color:#888;opacity:0.6;padding:20px;">
+                        目前尚無觀測紀錄，計算後即自動留存數據。
+                    </td>
+                </tr>`;
+            if (paginationContainer) paginationContainer.innerHTML = '';
+            return;
+        }
+
+        const totalPages = Math.ceil(records.length / this.rowsPerPage);
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        if (this.currentPage < 1) this.currentPage = 1;
+
+        const startIndex = (this.currentPage - 1) * this.rowsPerPage;
+        const endIndex = startIndex + this.rowsPerPage;
+        const paginatedItems = records.slice(startIndex, endIndex);
+
+        // 🛡️ 安全過濾器：防止代碼注入與頁面異常
+        const esc = (str) => String(str).replace(/[&<>'"]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":"&#39;",'"':'&quot;'}[t] || t));
+
+        tbody.innerHTML = paginatedItems.map(item => `
+            <tr>
+                <td style="color: #888; font-size: 13px;">${esc(item.time)}</td>
+                <td style="font-weight: bold; color: #ff9800;">${esc(item.code)}</td>
+                <td>
+                    <span class="record-badge ${item.type === '通過速度' ? 'badge-speed' : 'badge-accel'}">
+                        ${esc(item.type)}
+                    </span>
+                </td>
+                <td class="record-data-cell">
+                    ${esc(item.result)}
+                </td>
+                <td>
+                    <button type="button" class="btn-delete" onclick="RecordManager.deleteItem(${item.id})">
+                        刪除
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+        if (!paginationContainer) {
+            paginationContainer = document.createElement('div');
+            paginationContainer.id = 'pagination-controls';
+            paginationContainer.className = 'pagination-container';
+            const wrapper = document.querySelector('.record-table-wrapper') || tbody.closest('table');
+            if (wrapper) {
+                wrapper.parentNode.insertBefore(paginationContainer, wrapper.nextSibling);
+            }
+        }
+
+        if (totalPages <= 1) {
+            paginationContainer.innerHTML = '';
+            return;
+        }
+
+        paginationContainer.innerHTML = `
+            <button type="button" class="btn-page" ${this.currentPage === 1 ? 'disabled' : ''} onclick="RecordManager.changePage(${this.currentPage - 1})">◀</button>
+            <span class="page-info">${this.currentPage} / ${totalPages}</span>
+            <button type="button" class="btn-page" ${this.currentPage === totalPages ? 'disabled' : ''} onclick="RecordManager.changePage(${this.currentPage + 1})">▶</button>
+        `;
+    }
+};
+
+// 初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => RecordManager.init());
+} else {
+    RecordManager.init();
+}
+// ==========================================================================
+// --- 10. 系統主題自動監聽與模擬核心 (精準硬體連動修正版) ---
+// ==========================================================================
+
+// 🚀 初始化系統主題監聽媒體查詢（精準檢測是否為深色模式）
+const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+// 💡 智慧辨識核心：100% 追隨硬體訊號，絕不鳥任何 LocalStorage 緩存
+// 參數 e: 媒體查詢監聽事件或直接傳入的 mediaQueryList 物件
+function handleThemeChange(e) {
+    const body = document.body;
+    const themeBtn = document.getElementById('themeToggle');
+    
+    // 🎯 核心邏輯：如果裝置目前「是深色模式」或者「完全不支援主題概念」，一律走深色
+    if (darkModeMediaQuery.matches) {
+        body.classList.remove('light-mode');            // 裝置深 -> 移除淺色類名（變回預設黑）
+        if (themeBtn) themeBtn.innerText = "淺色模式";   // 按鈕提示：點擊可手動切換至淺色
+    } else {
+        // 否則（裝置明確回報為淺色模式），才切換為淺色
+        body.classList.add('light-mode');               // 裝置淺 -> 加入淺色類名
+        if (themeBtn) themeBtn.innerText = "深色模式";   // 按鈕提示：點擊可手動切換至深色
+    }
+}
+
+// 🔄 頁面初次載入時，立即強制執行一次偵測，確保一開網頁主題就跟手機一模一樣
+handleThemeChange(darkModeMediaQuery);
+
+// 🎧 自動監聽裝置主題即時切換（當手機下拉選單從淺切深，或深切淺時同步秒變）
+// 完美相容新版 addEventListener 與舊版舊手機 addListener 語法
+if (darkModeMediaQuery.addEventListener) {
+    darkModeMediaQuery.addEventListener('change', handleThemeChange);
+} else {
+    darkModeMediaQuery.addListener(handleThemeChange); 
+}
+
+// 🛠️ 開發者專用模擬系統主題函式
+// 點擊 HTML 上方的開發者調試面板時，會直接呼叫此函式模擬手機下拉選單切換深淺色的訊號
+// 參數 mode: 字串型態，可傳入 'light' 或 'dark'
+function simulateSystemTheme(mode) {
+    const body = document.body;
+    const themeBtn = document.getElementById('themeToggle');
+    
+    if (mode === 'light') {
+        body.classList.add('light-mode');
+        if (themeBtn) themeBtn.innerText = "深色模式";
+        console.log("[系統模擬] 成功發送訊號：手機已切換至【淺色模式】☀️");
+    } else if (mode === 'dark') {
+        body.classList.remove('light-mode');
+        if (themeBtn) themeBtn.innerText = "淺色模式";
+        console.log("[系統模擬] 成功發送訊號：手機已切換至【深色模式】🌙");
+    }
+}
+</script>
+    
+  </body>
+  
+</html>
