@@ -4,13 +4,9 @@
   <head>
     
     <meta charset="UTF-8">
-    <!-- 🎯 補上下面這行（關鍵！） -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>速度計算v2.8.6 加三鶯</title>
+    <title>速度計算v4.1.5</title>
     <link rel="stylesheet" href="./style.css">
-
-    
-
   </head>
     
   <body>
@@ -121,20 +117,21 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
   display: flex; 
   justify-content: center; 
-  padding: 20px; 
+  padding: 12px; /* 🚀 從 20px 縮減到 12px，幫手機版兩側擠出更多空間 */
   transition: background 0.3s, color 0.3s;
 }
 
 /* 主容器 */
 .calculator { 
   background: var(--card-bg); 
-  padding: 20px; 
+  padding: 16px; /* 🚀 內距稍微縮小，避免在窄螢幕上壓縮到輸入欄位 */
   border-radius: 16px; 
-  width: 100%; 
-  max-width: 440px; 
+  width: 100%; /* 🎯 關鍵：寬度 100% 才能隨螢幕縮放 */
+  max-width: 440px; /* 🎯 關鍵：最大上限鎖在 440px，在電腦上看就不會拉得太寬 */
   border: 1px solid var(--border-color); 
   box-shadow: 0 12px 30px rgba(0,0,0,0.15); 
   transition: background 0.3s, border-color 0.3s;
+  box-sizing: border-box; /* 確保 padding 不會額外撐大容器 */
 }
 
 /* 頂部控制列 */
