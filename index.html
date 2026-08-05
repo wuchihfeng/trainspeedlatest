@@ -3,11 +3,13 @@
 
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>列車速度 v4.1.0</title>
-    <link rel="stylesheet" href="./style.css">
+    <title>列車速度v4.1.5 整合</title>
+    
 
-<style>
+  </head>
+    
+  <body>
+  <style>
   /* 1. 線上引入思源黑體 (Noto Sans TC) 與 思源等寬數字 (Noto Sans Mono)
    ========================================================================== */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
@@ -114,22 +116,22 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
   display: flex; 
   justify-content: center; 
-  padding: 12px; /* 🚀 從 20px 縮減到 12px，幫手機版兩側擠出更多空間 */
+  padding: 20px; 
   transition: background 0.3s, color 0.3s;
 }
-  
+
 /* 主容器 */
 .calculator { 
   background: var(--card-bg); 
-  padding: 16px; /* 🚀 內距稍微縮小，避免在窄螢幕上壓縮到輸入欄位 */
+  padding: 20px; 
   border-radius: 16px; 
-  width: 100%; /* 🎯 關鍵：寬度 100% 才能隨螢幕縮放 */
-  max-width: 440px; /* 🎯 關鍵：最大上限鎖在 440px，在電腦上看就不會拉得太寬 */
+  width: 100%; 
+  max-width: 440px; 
   border: 1px solid var(--border-color); 
   box-shadow: 0 12px 30px rgba(0,0,0,0.15); 
   transition: background 0.3s, border-color 0.3s;
-  box-sizing: border-box; /* 確保 padding 不會額外撐大容器 */
 }
+
 /* 頂部控制列 */
 .top-controls {
   display: flex;
@@ -870,7 +872,6 @@ button[onclick*="reset"]:active {
   font-size: 14px;
 }
   </style>
-  </head>
 <!--4.1.0改進於4.0.1內容：
 1.修正紀錄功能的計算結果紀錄bug。
 2.更改紀錄功能頁數顯示限制。
@@ -1008,13 +1009,10 @@ button[onclick*="reset"]:active {
             </tbody>
     </table>
 </div>
-    
-    <!-- 全域清空按鈕 -->
-    <div class="reset-all-container">
-      <button type="button" onclick="resetAll()" class="btn-danger">清空整頁 (包括紀錄)</button>
-    </div>
 
-  </div>
+<div class="reset-all-container">
+    <button type="button" onclick="resetAll()" class="btn-danger">清空整頁 (包括紀錄)</button>
+</div>
 
   <div class="reference-guide">
     <div class="guide-title">完整代碼/名稱表</div>
@@ -1754,14 +1752,13 @@ const RecordManager = {
         this.render();
     },
 
-    saveCurrent(forcedType) {
+        saveCurrent(forcedType) {
         const elCode = document.getElementById('trainCode');
         const trainCode = (elCode && elCode.value.trim()) ? elCode.value.trim().toUpperCase() : "未指定車型";
         
         let type = "";
         let resultValue = "";
 
-        // 🌟 修正點：從對應的 DOM 元素中即時撈取 innerText，徹底解決未定義變數崩潰的 Bug
         if (forcedType === 'accel') {
             type = "起動加速度";
             const elAccel = document.getElementById('mainAccel');
@@ -1774,12 +1771,16 @@ const RecordManager = {
             return;
         }
 
-        // 如果數值未計算完成或是初始狀態，則不予存檔
         if (!resultValue || resultValue.includes("--")) return;
+
+        // 🕒 取得完整日期與時間 (例：2026/08/05 15:30:45)
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
         const newRecord = {
             id: Date.now(),
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: `${dateStr} ${timeStr}`, // 組合年月日與時間
             code: trainCode,
             type: type,
             result: resultValue
@@ -1954,3 +1955,7 @@ function simulateSystemTheme(mode) {
     }
 }
 </script>
+    
+  </body>
+  
+</html>
